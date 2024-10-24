@@ -1,30 +1,33 @@
 #!/usr/bin/env python3
 """
-    Create a Cache class. In the __init__ method, store an instance of the
+    0.Create a Cache class. In the __init__ method, store an instance of the
     Redis client as a private variable named _redis (using redis.Redis())
     and flush the instance using flushdb.
-
     Create a store method that takes a data argument and returns a string.
-    The method should generate a random key (e.g. using uuid), store the
-    input data in Redis using the random key and return the key.
 
-    Type-annotate store correctly. Remember that data can be a str,
-    bytes, int or float
-
-    1.Redis only allows to store string, bytes and numbers (and lists thereof).
-    Whatever you store as single elements, it will be returned as a byte string
-    Hence if you store "a" as a UTF-8 string, it will be returned as b"a"
-    when retrieved from the server.
-
-    In this exercise we will create a get method that take a key string
-    argument and an optional Callable argument named fn. This callable will
-    be used to convert the data back to the desired format.
-
-    Remember to conserve the original Redis.get behavior if the key
-    does not exist.
-
-    Also, implement 2 new methods: get_str and get_int that will automatically
+    1.Create a get method that take a key string argument and an optional
+    Callable argument named fn. This callable will be used to convert
+    the data back to the desired format.
+    Implement 2 new methods: get_str and get_int that will automatically
     parametrize Cache.get with the correct conversion function.
+
+    2.Implement a system to count how many times methods of the Cache class
+    are called. Above Cache define a count_calls decorator that takes
+    a single method Callable argument and returns a Callable. As a key,
+    use the qualified name of method using the __qualname__ dunder method.
+    Create and return function that increments the count for that key
+    every time the method is called and returns the value returned by
+    the original method.
+
+    3.Define a call_history decorator to store the history of inputs and
+    outputs for a particular function. In call_history, use the decorated
+    function’s qualified name and append ":inputs" and ":outputs" to create
+    input and output list keys, respectively. In the new function that the
+    decorator will return, use rpush to append the input arguments
+
+    4.Implement a replay function to display the history of calls of
+    a particular function. Use keys generated in previous tasks to
+    generate the given output.
 """
 
 
@@ -58,6 +61,35 @@ def call_history(method: Callable) -> Callable:
         self._redis.rpush(method.__qualname__ + ":outputs", output)
         return output
     return wrapper
+
+    def replay(fn: Callable):
+        """Display the history of calls of a particular function"""
+        r = redis.Redis()
+        function_name = fn.__qualname__
+        value = r.get(function_name)
+        try:
+            value = int(value.decode("utf-8"))
+        except Exception:
+            value = 0
+
+            print("{} was called {} times:".format(function_name, value))
+
+            inputs = r.lrange("{}:inputs".format(function_name), 0, -1)
+
+            outputs = r.lrange("{}:outputs".format(function_name), 0, -1)
+
+            for input, output in zip(inputs, outputs):
+                try:
+                    input = input.decode("utf-8")
+                except Exception:
+                    input = ""
+
+                try:
+                    output = output.decode("utf-8")
+                except Exception:
+                    output = ""
+
+                print("{}(*{}) -> {}".format(function_name, input, output))
 
 
 class Cache:
